@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <title>Land Record Search System</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/browser@0.76.3/build/style.css" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import { mount } from "https://cdn.jsdelivr.net/npm/@stlite/browser@0.76.3/build/stlite.js";
+
+    async function loadApp() {
+      const responseApp = await fetch("./app.py");
+      const mainScript = await responseApp.text();
+
+      const responseHeader = await fetch("./static/header.jpeg");
+      const headerBlob = await responseHeader.blob();
+      const headerBuffer = await headerBlob.arrayBuffer();
+
+      mount({
+        requirements: ["streamlit", "pandas", "requests", "openpyxl"],
+        entrypoint: "app.py",
+        files: {
+          "app.py": mainScript,
+          "static/header.jpeg": new Uint8Array(headerBuffer),
+        },
+        streamlitConfig: {
+          "server.runOnSave": false,
+          "theme.base": "light",
+          "theme.primaryColor": "#ff4b4b",
+          "theme.backgroundColor": "#ffffff",
+          "theme.secondaryBackgroundColor": "#f0f2f6",
+          "theme.textColor": "#31333f",
+          "theme.font": "sans serif"
+        }
+      }, document.getElementById("root"));
+    }
+
+    loadApp().catch((error) => {
+      console.error("Error loading application:", error);
+      document.getElementById("root").innerHTML = "<h1>Error loading application</h1><p>Please check the console for details.</p>";
+    });
+  </script>
+</body>
+
+</html>
