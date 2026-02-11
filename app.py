@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-import io
-import requests
 import base64
+import os
 
 # Set page settings
 st.set_page_config(
@@ -17,8 +16,7 @@ if 'dark_mode' not in st.session_state:
 
 
 # Fixed values
-# Update to XLSX export URL to support multiple sheets
-DATA_URL = "https://docs.google.com/spreadsheets/d/1lpzFNKk0thSQqS8GQxzwiuLr8T9abM7M/export?format=xlsx"
+DATA_FILE = "data.xlsx"
 
 # Dictionary for languages
 TRANSLATIONS = {
@@ -61,14 +59,14 @@ TRANSLATIONS = {
 }
 
 # This function gets data
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def load_all_sheets():
     try:
-        response = requests.get(DATA_URL)
-        response.raise_for_status()
+        if not os.path.exists(DATA_FILE):
+            st.error(f"Error: {DATA_FILE} not found. Please ensure the file exists in the root directory.")
+            return None
         # Read the Excel file into a dictionary of DataFrames
-        # We read without header first to detect the correct header row
-        xls = pd.read_excel(io.BytesIO(response.content), sheet_name=None, header=None)
+        xls = pd.read_excel(DATA_FILE, sheet_name=None, header=None)
         return xls
     except Exception as e:
         st.error(f"Error: {e}")
@@ -551,11 +549,6 @@ def main():
             placeholder=t['select_placeholder']
         )
 
-        # Button to get new data
-        if st.sidebar.button(t['refresh_button'], type="primary", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-
         st.sidebar.divider()
 
         if selected_sheet_name:
@@ -588,38 +581,54 @@ def main():
             # Make filters work
             filtered_df = df.copy()
 
-            # 1. Filter for Ward
-            if col_ward:
-                ward_options = sorted(df[col_ward].dropna().astype(str).unique().tolist())
-                selected_ward = st.sidebar.selectbox(
-                    t['ward'], 
-                    ward_options, 
-                    index=None, 
-                    placeholder=t['select_placeholder']
-                )
-                if selected_ward:
-                    filtered_df = filtered_df[filtered_df[col_ward].astype(str) == selected_ward]
+            # Filters in a form to prevent "search while typing"
+            with st.sidebar.form(key="search_form"):
+                # 1. Filter for Ward
+                selected_ward = None
+                if col_ward:
+                    ward_options = sorted(df[col_ward].dropna().astype(str).unique().tolist())
+                    selected_ward = st.selectbox(
+                        t['ward'], 
+                        ward_options, 
+                        index=None, 
+                        placeholder=t['select_placeholder']
+                    )
+                
+                # 2. Filter for Sheet No (depends on Ward)
+                selected_sheet = None
+                if col_sheet:
+                    # We can't filter sheet_options based on selected_ward here easily because it's in a form
+                    # and won't rerun until submitted. However, we can keep the full list or use the one before form entry.
+                    # Since it's in a form, interactions inside don't trigger rerun.
+                    # To keep it simple, we use the available sheets in the whole df.
+                    sheet_options = sorted(df[col_sheet].dropna().astype(str).unique().tolist())
+                    selected_sheet = st.selectbox(
+                        t['sheet_no'], 
+                        sheet_options, 
+                        index=None, 
+                        placeholder=t['select_placeholder']
+                    )
+                
+                # 3. Filter for Plot (Text Input)
+                search_plot = ""
+                if col_plot:
+                    search_plot = st.text_input(
+                        t['kit_number'],
+                        placeholder=t['search_placeholder']
+                    )
+                
+                submit_button = st.form_submit_button(label="खोज्नुहोस् (Search)", use_container_width=True)
+
+            # Apply filters only when submitted or if it's the first run (or if we want to show everything)
+            # Actually in Streamlit forms, we usually filter based on the values when submit is clicked.
+            if selected_ward:
+                filtered_df = filtered_df[filtered_df[col_ward].astype(str) == selected_ward]
             
-            # 2. Filter for Sheet No (depends on Ward)
-            if col_sheet:
-                sheet_options = sorted(filtered_df[col_sheet].dropna().astype(str).unique().tolist())
-                selected_sheet = st.sidebar.selectbox(
-                    t['sheet_no'], 
-                    sheet_options, 
-                    index=None, 
-                    placeholder=t['select_placeholder']
-                )
-                if selected_sheet:
-                    filtered_df = filtered_df[filtered_df[col_sheet].astype(str) == selected_sheet]
-            
-            # 3. Filter for Plot (Text Input)
-            if col_plot:
-                search_plot = st.sidebar.text_input(
-                    t['kit_number'],
-                    placeholder=t['search_placeholder']
-                )
-                if search_plot:
-                    filtered_df = filtered_df[filtered_df[col_plot].astype(str).str.contains(search_plot, case=False, na=False)]
+            if selected_sheet:
+                filtered_df = filtered_df[filtered_df[col_sheet].astype(str) == selected_sheet]
+                
+            if search_plot:
+                filtered_df = filtered_df[filtered_df[col_plot].astype(str).str.contains(search_plot, case=False, na=False)]
             
             # Put important columns first
             found_cols = [c for c in [col_plot, col_ward, col_sheet] if c]
