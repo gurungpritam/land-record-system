@@ -16,7 +16,9 @@ if 'dark_mode' not in st.session_state:
 
 
 # Fixed values
-DATA_FILE = "data.xlsx"
+# Use absolute path relative to this script's directory
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_FILE = os.path.join(SCRIPT_DIR, "data.xlsx")
 
 # Dictionary for languages
 TRANSLATIONS = {
